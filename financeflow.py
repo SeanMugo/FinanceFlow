@@ -1,0 +1,76 @@
+import tkinter as tk
+from tkinter import ttk
+from datetime import datetime
+
+class FinanceFlow:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("FinanceFlow - Expense Tracker")
+        self.root.geometry("900x600")
+        
+        # Title
+        title = tk.Label(root, text="FinanceFlow", font=("Arial", 24, "bold"))
+        title.pack(pady=10)
+        
+        subtitle = tk.Label(root, text="Track your expenses. Control your money.", font=("Arial", 10))
+        subtitle.pack(pady=(0,10))
+        
+        # Main frame
+        main_frame = tk.Frame(root)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Left side - Add expense form
+        left_frame = tk.Frame(main_frame, relief="solid", bd=1)
+        left_frame.pack(side="left", fill="both", expand=True, padx=(0,10))
+        
+        # Right side - Expense list
+        right_frame = tk.Frame(main_frame, relief="solid", bd=1)
+        right_frame.pack(side="right", fill="both", expand=True)
+        
+        # Form labels and entries
+        tk.Label(left_frame, text="Add New Expense", font=("Arial", 16)).pack(pady=10)
+        
+        tk.Label(left_frame, text="Amount:").pack(anchor="w", padx=20, pady=(10,0))
+        self.amount_entry = tk.Entry(left_frame, font=("Arial", 12))
+        self.amount_entry.pack(fill="x", padx=20, pady=5)
+        
+        tk.Label(left_frame, text="Category:").pack(anchor="w", padx=20, pady=(10,0))
+        self.category_var = tk.StringVar()
+        categories = ["Food", "Transport", "Entertainment", "Shopping", "Bills", "Healthcare", "Other"]
+        self.category_menu = ttk.Combobox(left_frame, textvariable=self.category_var, values=categories)
+        self.category_menu.pack(fill="x", padx=20, pady=5)
+        
+        tk.Label(left_frame, text="Description:").pack(anchor="w", padx=20, pady=(10,0))
+        self.desc_entry = tk.Entry(left_frame, font=("Arial", 12))
+        self.desc_entry.pack(fill="x", padx=20, pady=5)
+        
+        tk.Label(left_frame, text="Date (YYYY-MM-DD):").pack(anchor="w", padx=20, pady=(10,0))
+        self.date_entry = tk.Entry(left_frame, font=("Arial", 12))
+        self.date_entry.pack(fill="x", padx=20, pady=5)
+        self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        
+        # Add button
+        self.add_btn = tk.Button(left_frame, text="Add Expense", bg="green", fg="white", font=("Arial", 12))
+        self.add_btn.pack(pady=20)
+        
+        # Right side - expense list title
+        tk.Label(right_frame, text="Recent Expenses", font=("Arial", 16)).pack(pady=10)
+        
+        # Treeview for expenses
+        columns = ("Date", "Category", "Description", "Amount")
+        self.tree = ttk.Treeview(right_frame, columns=columns, show="headings")
+        
+        for col in columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=100)
+        
+        self.tree.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Summary label at bottom
+        self.summary_label = tk.Label(root, text="Total: $0", font=("Arial", 14), fg="blue")
+        self.summary_label.pack(pady=10)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = FinanceFlow(root)
+    root.mainloop()
