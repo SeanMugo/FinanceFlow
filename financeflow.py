@@ -62,7 +62,7 @@ class FinanceFlow:
         self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
         
         # Add button
-        self.add_btn = tk.Button(left_frame, text="Add Expense", bg="green", fg="white", font=("Arial", 12), command=self.add_expense_to_table)
+        self.add_btn = tk.Button(left_frame, text="Add Expense", bg="green", fg="white", font=("Arial", 12), command=self.add_expense)
         self.add_btn.pack(pady=20)
         
         # Right side - expense list title
@@ -81,8 +81,52 @@ class FinanceFlow:
         # Summary label at bottom
         self.summary_label = tk.Label(root, text="Total: $0", font=("Arial", 14), fg="blue")
         self.summary_label.pack(pady=10)
+        
+        # Load existing expenses from database
+        self.load_expenses()
 
-    def add_expense_to_table(self):
+    def save_expense_to_db(self, amount, category, description, date):
+        if collection is None:
+            messagebox.showerror("Error", "Database not connected")
+            return False
+        
+        expense = {
+            "amount": amount,
+            "category": category,
+            "description": description,
+            "date": date,
+            "created_at": datetime.now()
+        }
+        
+        try:
+            collection.insert_one(expense)
+            return True
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save: {e}")
+            return False
+    
+    def load_expenses(self):
+        if collection is None:
+            return
+        
+        # Clear existing table items
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        try:
+            expenses = collection.find().sort("created_at", -1)
+            for exp in expenses:
+                self.tree.insert("", "end", values=(
+                    exp["date"], 
+                    exp["category"], 
+                    exp["description"], 
+                    f"${exp['amount']:.2f}"
+                ))
+            self.update_total()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load: {e}")
+    
+    def add_expense(self):
         try:
             amount = float(self.amount_entry.get())
             category = self.category_var.get()
@@ -95,16 +139,19 @@ class FinanceFlow:
             if not description:
                 description = "-"
             
-            self.tree.insert("", "end", values=(date, category, description, f"${amount:.2f}"))
-            
-            # Clear entries
-            self.amount_entry.delete(0, tk.END)
-            self.category_var.set("")
-            self.desc_entry.delete(0, tk.END)
-            self.date_entry.delete(0, tk.END)
-            self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
-            
-            self.update_total()
+            # Save to database
+            if self.save_expense_to_db(amount, category, description, date):
+                # Add to table
+                self.tree.insert("", "end", values=(date, category, description, f"${amount:.2f}"))
+                
+                # Clear entries
+                self.amount_entry.delete(0, tk.END)
+                self.category_var.set("")
+                self.desc_entry.delete(0, tk.END)
+                self.date_entry.delete(0, tk.END)
+                self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
+                
+                self.update_total()
             
         except ValueError:
             messagebox.showerror("Error", "Please enter a valid amount")
