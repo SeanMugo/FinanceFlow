@@ -10,16 +10,18 @@ try:
     client = pymongo.MongoClient(MONGO_URI)
     db = client["financeflow"]
     collection = db["expenses"]
+    settings_collection = db["settings"]
     print("MongoDB connected successfully")
 except Exception as e:
     print(f"MongoDB connection failed: {e}")
     collection = None
+    settings_collection = None
 
 class FinanceFlow:
     def __init__(self, root):
         self.root = root
         self.root.title("FinanceFlow - Expense Tracker")
-        self.root.geometry("900x600")
+        self.root.geometry("900x700")
         
         # Title
         title = tk.Label(root, text="FinanceFlow", font=("Arial", 24, "bold"))
@@ -89,11 +91,28 @@ class FinanceFlow:
         self.export_btn = tk.Button(button_frame, text="Export to CSV", bg="blue", fg="white", command=self.export_to_csv)
         self.export_btn.pack(side="left", padx=5)
         
+        # Budget frame (below the summary)
+        budget_frame = tk.Frame(root)
+        budget_frame.pack(pady=5, fill="x", padx=20)
+        
+        tk.Label(budget_frame, text="Monthly Budget:", font=("Arial", 12)).pack(side="left", padx=5)
+        self.budget_entry = tk.Entry(budget_frame, font=("Arial", 12), width=12)
+        self.budget_entry.pack(side="left", padx=5)
+        
+        self.set_budget_btn = tk.Button(budget_frame, text="Set Budget", bg="orange", fg="white", command=self.set_budget)
+        self.set_budget_btn.pack(side="left", padx=5)
+        
+        # Budget status label
+        self.budget_status = tk.Label(root, text="", font=("Arial", 11))
+        self.budget_status.pack(pady=5)
+        
         # Summary label at bottom
         self.summary_label = tk.Label(root, text="Total: $0", font=("Arial", 14), fg="blue")
         self.summary_label.pack(pady=10)
         
-        # Load existing expenses from database
+        # Load data
+        self.current_budget = 0
+        self.load_budget()
         self.load_expenses()
 
     def save_expense_to_db(self, amount, category, description, date):
@@ -163,6 +182,7 @@ class FinanceFlow:
                 self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
                 
                 self.update_total()
+                self.check_budget_status()
             
         except ValueError:
             messagebox.showerror("Error", "Please enter a valid amount")
@@ -200,6 +220,7 @@ class FinanceFlow:
                     print(f"Database delete error: {e}")
             
             self.update_total()
+            self.check_budget_status()
             messagebox.showinfo("Success", "Expense deleted")
     
     def export_to_csv(self):
@@ -233,7 +254,67 @@ class FinanceFlow:
             amount_str = values[3].replace("$", "")
             total += float(amount_str)
         
-        self.summary_label.config(text=f"Total: ${total:.2f}")
+        self.summary_label.config(text=f"Total Spent: ${total:.2f}")
+    
+    def set_budget(self):
+        try:
+            self.current_budget = float(self.budget_entry.get())
+            self.save_budget()
+            self.check_budget_status()
+            messagebox.showinfo("Success", f"Monthly budget set to ${self.current_budget:.2f}")
+        except ValueError:
+            messagebox.showerror("Error", "Please enter a valid amount")
+    
+    def save_budget(self):
+        if settings_collection is None:
+            return
+        try:
+            settings_collection.update_one(
+                {"_id": "budget"}, 
+                {"$set": {"amount": self.current_budget, "updated_at": datetime.now()}}, 
+                upsert=True
+            )
+        except Exception as e:
+            print(f"Failed to save budget: {e}")
+    
+    def load_budget(self):
+        if settings_collection is None:
+            return
+        try:
+            result = settings_collection.find_one({"_id": "budget"})
+            if result:
+                self.current_budget = result["amount"]
+                self.budget_entry.insert(0, str(self.current_budget))
+                self.check_budget_status()
+        except Exception as e:
+            print(f"Failed to load budget: {e}")
+    
+    def check_budget_status(self):
+        if self.current_budget <= 0:
+            self.budget_status.config(text="No budget set. Enter a monthly budget above.")
+            return
+        
+        # Calculate total spent
+        total = 0
+        for item in self.tree.get_children():
+            values = self.tree.item(item)["values"]
+            amount_str = values[3].replace("$", "")
+            total += float(amount_str)
+        
+        remaining = self.current_budget - total
+        
+        if remaining < 0:
+            self.budget_status.config(
+                text=f"Over budget by ${-remaining:.2f}. You have exceeded your ${self.current_budget:.2f} monthly budget.",
+                fg="red",
+                font=("Arial", 11, "bold")
+            )
+        else:
+            self.budget_status.config(
+                text=f"Remaining budget: ${remaining:.2f} of ${self.current_budget:.2f}",
+                fg="green",
+                font=("Arial", 11)
+            )
 
 if __name__ == "__main__":
     root = tk.Tk()
