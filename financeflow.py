@@ -177,14 +177,19 @@ class FinanceFlow:
             # Get the expense details from the table
             item = self.tree.item(selected[0])
             values = item["values"]
-            amount = float(values[3].replace("$", ""))
-            date = values[0]
-            description = values[2]
-            category = values[1]
+            
+            # Delete from table first
+            self.tree.delete(selected[0])
             
             # Delete from database
             if collection:
                 try:
+                    amount_str = values[3].replace("$", "")
+                    amount = float(amount_str)
+                    date = values[0]
+                    description = values[2]
+                    category = values[1]
+                    
                     collection.delete_one({
                         "amount": amount,
                         "date": date,
@@ -192,11 +197,8 @@ class FinanceFlow:
                         "category": category
                     })
                 except Exception as e:
-                    messagebox.showerror("Error", f"Failed to delete from database: {e}")
-                    return
+                    print(f"Database delete error: {e}")
             
-            # Delete from table
-            self.tree.delete(selected[0])
             self.update_total()
             messagebox.showinfo("Success", "Expense deleted")
     
