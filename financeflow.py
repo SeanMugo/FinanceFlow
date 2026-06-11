@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, Toplevel
 from datetime import datetime
 import pymongo
 import csv
@@ -81,6 +81,9 @@ class FinanceFlow:
         
         self.tree.pack(fill="both", expand=True, padx=10, pady=10)
         
+        # Bind double-click event to edit
+        self.tree.bind("<Double-1>", self.open_edit_window)
+        
         # Button frame for delete and export
         button_frame = tk.Frame(right_frame)
         button_frame.pack(pady=10)
@@ -90,6 +93,9 @@ class FinanceFlow:
         
         self.export_btn = tk.Button(button_frame, text="Export to CSV", bg="blue", fg="white", command=self.export_to_csv)
         self.export_btn.pack(side="left", padx=5)
+        
+        self.edit_btn = tk.Button(button_frame, text="Edit Selected", bg="purple", fg="white", command=self.open_edit_window)
+        self.edit_btn.pack(side="left", padx=5)
         
         # Budget frame (below the summary)
         budget_frame = tk.Frame(root)
@@ -107,7 +113,7 @@ class FinanceFlow:
         self.budget_status.pack(pady=5)
         
         # Summary label at bottom
-        self.summary_label = tk.Label(root, text="Total: $0", font=("Arial", 14), fg="blue")
+        self.summary_label = tk.Label(root, text="Total Spent: $0", font=("Arial", 14), fg="blue")
         self.summary_label.pack(pady=10)
         
         # Load data
@@ -151,7 +157,7 @@ class FinanceFlow:
                     exp["category"], 
                     exp["description"], 
                     f"${exp['amount']:.2f}"
-                ))
+                ), tags=(exp["_id"],))
             self.update_total()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load: {e}")
@@ -315,6 +321,108 @@ class FinanceFlow:
                 fg="green",
                 font=("Arial", 11)
             )
+    
+    def open_edit_window(self, event=None):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Select an expense to edit")
+            return
+        
+        # Get current values
+        item = self.tree.item(selected[0])
+        current_values = item["values"]
+        
+        # Create edit window
+        edit_win = Toplevel(self.root)
+        edit_win.title("Edit Expense")
+        edit_win.geometry("400x350")
+        edit_win.grab_set()  # Make it modal
+        
+        # Center the window
+        edit_win.transient(self.root)
+        
+        # Labels and entries
+        tk.Label(edit_win, text="Edit Expense", font=("Arial", 16, "bold")).pack(pady=10)
+        
+        tk.Label(edit_win, text="Amount:").pack(anchor="w", padx=20, pady=(10,0))
+        amount_entry = tk.Entry(edit_win, font=("Arial", 12))
+        amount_entry.pack(fill="x", padx=20, pady=5)
+        amount_entry.insert(0, current_values[3].replace("$", ""))
+        
+        tk.Label(edit_win, text="Category:").pack(anchor="w", padx=20, pady=(10,0))
+        category_var = tk.StringVar()
+        categories = ["Food", "Transport", "Entertainment", "Shopping", "Bills", "Healthcare", "Other"]
+        category_menu = ttk.Combobox(edit_win, textvariable=category_var, values=categories)
+        category_menu.pack(fill="x", padx=20, pady=5)
+        category_menu.set(current_values[1])
+        
+        tk.Label(edit_win, text="Description:").pack(anchor="w", padx=20, pady=(10,0))
+        desc_entry = tk.Entry(edit_win, font=("Arial", 12))
+        desc_entry.pack(fill="x", padx=20, pady=5)
+        desc_entry.insert(0, current_values[2])
+        
+        tk.Label(edit_win, text="Date (YYYY-MM-DD):").pack(anchor="w", padx=20, pady=(10,0))
+        date_entry = tk.Entry(edit_win, font=("Arial", 12))
+        date_entry.pack(fill="x", padx=20, pady=5)
+        date_entry.insert(0, current_values[0])
+        
+        # Button frame
+        btn_frame = tk.Frame(edit_win)
+        btn_frame.pack(pady=20)
+        
+        def save_edit():
+            try:
+                new_amount = float(amount_entry.get())
+                new_category = category_var.get()
+                new_description = desc_entry.get()
+                new_date = date_entry.get()
+                
+                if not new_category:
+                    new_category = "Other"
+                
+                if not new_description:
+                    new_description = "-"
+                
+                # Update database
+                if collection:
+                    # Find and update the expense
+                    old_amount = float(current_values[3].replace("$", ""))
+                    old_date = current_values[0]
+                    old_description = current_values[2]
+                    old_category = current_values[1]
+                    
+                    collection.update_one(
+                        {
+                            "amount": old_amount,
+                            "date": old_date,
+                            "description": old_description,
+                            "category": old_category
+                        },
+                        {
+                            "$set": {
+                                "amount": new_amount,
+                                "category": new_category,
+                                "description": new_description,
+                                "date": new_date
+                            }
+                        }
+                    )
+                
+                # Update table
+                self.tree.item(selected[0], values=(new_date, new_category, new_description, f"${new_amount:.2f}"))
+                
+                # Refresh totals
+                self.update_total()
+                self.check_budget_status()
+                
+                edit_win.destroy()
+                messagebox.showinfo("Success", "Expense updated")
+                
+            except ValueError:
+                messagebox.showerror("Error", "Please enter a valid amount")
+        
+        tk.Button(btn_frame, text="Save Changes", bg="green", fg="white", command=save_edit).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Cancel", bg="gray", fg="white", command=edit_win.destroy).pack(side="left", padx=5)
 
 if __name__ == "__main__":
     root = tk.Tk()
