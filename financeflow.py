@@ -1,6 +1,18 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
+import pymongo
+from config import MONGO_URI
+
+# MongoDB connection
+try:
+    client = pymongo.MongoClient(MONGO_URI)
+    db = client["financeflow"]
+    collection = db["expenses"]
+    print("MongoDB connected successfully")
+except Exception as e:
+    print(f"MongoDB connection failed: {e}")
+    collection = None
 
 class FinanceFlow:
     def __init__(self, root):
