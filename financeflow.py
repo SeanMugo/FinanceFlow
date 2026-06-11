@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from datetime import datetime
 
 class FinanceFlow:
@@ -50,7 +50,7 @@ class FinanceFlow:
         self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
         
         # Add button
-        self.add_btn = tk.Button(left_frame, text="Add Expense", bg="green", fg="white", font=("Arial", 12))
+        self.add_btn = tk.Button(left_frame, text="Add Expense", bg="green", fg="white", font=("Arial", 12), command=self.add_expense_to_table)
         self.add_btn.pack(pady=20)
         
         # Right side - expense list title
@@ -69,6 +69,42 @@ class FinanceFlow:
         # Summary label at bottom
         self.summary_label = tk.Label(root, text="Total: $0", font=("Arial", 14), fg="blue")
         self.summary_label.pack(pady=10)
+
+    def add_expense_to_table(self):
+        try:
+            amount = float(self.amount_entry.get())
+            category = self.category_var.get()
+            description = self.desc_entry.get()
+            date = self.date_entry.get()
+            
+            if not category:
+                category = "Other"
+            
+            if not description:
+                description = "-"
+            
+            self.tree.insert("", "end", values=(date, category, description, f"${amount:.2f}"))
+            
+            # Clear entries
+            self.amount_entry.delete(0, tk.END)
+            self.category_var.set("")
+            self.desc_entry.delete(0, tk.END)
+            self.date_entry.delete(0, tk.END)
+            self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
+            
+            self.update_total()
+            
+        except ValueError:
+            messagebox.showerror("Error", "Please enter a valid amount")
+    
+    def update_total(self):
+        total = 0
+        for item in self.tree.get_children():
+            values = self.tree.item(item)["values"]
+            amount_str = values[3].replace("$", "")
+            total += float(amount_str)
+        
+        self.summary_label.config(text=f"Total: ${total:.2f}")
 
 if __name__ == "__main__":
     root = tk.Tk()
