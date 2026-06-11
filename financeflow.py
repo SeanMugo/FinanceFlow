@@ -1,7 +1,8 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from datetime import datetime
 import pymongo
+import csv
 from config import MONGO_URI
 
 # MongoDB connection
@@ -77,6 +78,16 @@ class FinanceFlow:
             self.tree.column(col, width=100)
         
         self.tree.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Button frame for delete and export
+        button_frame = tk.Frame(right_frame)
+        button_frame.pack(pady=10)
+        
+        self.delete_btn = tk.Button(button_frame, text="Delete Selected", bg="red", fg="white", command=self.delete_expense)
+        self.delete_btn.pack(side="left", padx=5)
+        
+        self.export_btn = tk.Button(button_frame, text="Export to CSV", bg="blue", fg="white", command=self.export_to_csv)
+        self.export_btn.pack(side="left", padx=5)
         
         # Summary label at bottom
         self.summary_label = tk.Label(root, text="Total: $0", font=("Arial", 14), fg="blue")
@@ -155,6 +166,63 @@ class FinanceFlow:
             
         except ValueError:
             messagebox.showerror("Error", "Please enter a valid amount")
+    
+    def delete_expense(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Select an expense to delete")
+            return
+        
+        if messagebox.askyesno("Confirm", "Delete this expense?"):
+            # Get the expense details from the table
+            item = self.tree.item(selected[0])
+            values = item["values"]
+            amount = float(values[3].replace("$", ""))
+            date = values[0]
+            description = values[2]
+            category = values[1]
+            
+            # Delete from database
+            if collection:
+                try:
+                    collection.delete_one({
+                        "amount": amount,
+                        "date": date,
+                        "description": description,
+                        "category": category
+                    })
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to delete from database: {e}")
+                    return
+            
+            # Delete from table
+            self.tree.delete(selected[0])
+            self.update_total()
+            messagebox.showinfo("Success", "Expense deleted")
+    
+    def export_to_csv(self):
+        if not self.tree.get_children():
+            messagebox.showwarning("Warning", "No expenses to export")
+            return
+        
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        
+        if filename:
+            try:
+                with open(filename, 'w', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(["Date", "Category", "Description", "Amount"])
+                    
+                    for item in self.tree.get_children():
+                        values = self.tree.item(item)["values"]
+                        writer.writerow(values)
+                
+                messagebox.showinfo("Success", f"Exported to {filename}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Export failed: {e}")
     
     def update_total(self):
         total = 0
