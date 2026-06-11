@@ -21,7 +21,7 @@ class FinanceFlow:
     def __init__(self, root):
         self.root = root
         self.root.title("FinanceFlow - Expense Tracker")
-        self.root.geometry("900x700")
+        self.root.geometry("1000x700")
         
         # Title
         title = tk.Label(root, text="FinanceFlow", font=("Arial", 24, "bold"))
@@ -77,7 +77,7 @@ class FinanceFlow:
         
         for col in columns:
             self.tree.heading(col, text=col)
-            self.tree.column(col, width=100)
+            self.tree.column(col, width=120)
         
         self.tree.pack(fill="both", expand=True, padx=10, pady=10)
         
@@ -97,12 +97,12 @@ class FinanceFlow:
         self.edit_btn = tk.Button(button_frame, text="Edit Selected", bg="purple", fg="white", command=self.open_edit_window)
         self.edit_btn.pack(side="left", padx=5)
         
-        # Budget frame (below the summary)
+        # Budget frame
         budget_frame = tk.Frame(root)
         budget_frame.pack(pady=5, fill="x", padx=20)
         
-        tk.Label(budget_frame, text="Monthly Budget:", font=("Arial", 12)).pack(side="left", padx=5)
-        self.budget_entry = tk.Entry(budget_frame, font=("Arial", 12), width=12)
+        tk.Label(budget_frame, text="Monthly Budget ($):", font=("Arial", 12)).pack(side="left", padx=5)
+        self.budget_entry = tk.Entry(budget_frame, font=("Arial", 12), width=15)
         self.budget_entry.pack(side="left", padx=5)
         
         self.set_budget_btn = tk.Button(budget_frame, text="Set Budget", bg="orange", fg="white", command=self.set_budget)
@@ -145,7 +145,6 @@ class FinanceFlow:
         if collection is None:
             return
         
-        # Clear existing table items
         for item in self.tree.get_children():
             self.tree.delete(item)
         
@@ -157,8 +156,9 @@ class FinanceFlow:
                     exp["category"], 
                     exp["description"], 
                     f"${exp['amount']:.2f}"
-                ), tags=(exp["_id"],))
+                ))
             self.update_total()
+            self.check_budget_status()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load: {e}")
     
@@ -175,12 +175,9 @@ class FinanceFlow:
             if not description:
                 description = "-"
             
-            # Save to database
             if self.save_expense_to_db(amount, category, description, date):
-                # Add to table
                 self.tree.insert("", "end", values=(date, category, description, f"${amount:.2f}"))
                 
-                # Clear entries
                 self.amount_entry.delete(0, tk.END)
                 self.category_var.set("")
                 self.desc_entry.delete(0, tk.END)
@@ -200,15 +197,12 @@ class FinanceFlow:
             return
         
         if messagebox.askyesno("Confirm", "Delete this expense?"):
-            # Get the expense details from the table
             item = self.tree.item(selected[0])
             values = item["values"]
             
-            # Delete from table first
             self.tree.delete(selected[0])
             
-            # Delete from database
-            if collection:
+            if collection is not None:
                 try:
                     amount_str = values[3].replace("$", "")
                     amount = float(amount_str)
@@ -253,13 +247,16 @@ class FinanceFlow:
             except Exception as e:
                 messagebox.showerror("Error", f"Export failed: {e}")
     
-    def update_total(self):
+    def get_total_spent(self):
         total = 0
         for item in self.tree.get_children():
             values = self.tree.item(item)["values"]
             amount_str = values[3].replace("$", "")
             total += float(amount_str)
-        
+        return total
+    
+    def update_total(self):
+        total = self.get_total_spent()
         self.summary_label.config(text=f"Total Spent: ${total:.2f}")
     
     def set_budget(self):
@@ -297,29 +294,21 @@ class FinanceFlow:
     
     def check_budget_status(self):
         if self.current_budget <= 0:
-            self.budget_status.config(text="No budget set. Enter a monthly budget above.")
+            self.budget_status.config(text="No budget set. Enter a monthly budget above.", fg="black")
             return
         
-        # Calculate total spent
-        total = 0
-        for item in self.tree.get_children():
-            values = self.tree.item(item)["values"]
-            amount_str = values[3].replace("$", "")
-            total += float(amount_str)
-        
+        total = self.get_total_spent()
         remaining = self.current_budget - total
         
         if remaining < 0:
             self.budget_status.config(
-                text=f"Over budget by ${-remaining:.2f}. You have exceeded your ${self.current_budget:.2f} monthly budget.",
-                fg="red",
-                font=("Arial", 11, "bold")
+                text=f"OVER BUDGET by ${-remaining:.2f} (Budget: ${self.current_budget:.2f})",
+                fg="red"
             )
         else:
             self.budget_status.config(
-                text=f"Remaining budget: ${remaining:.2f} of ${self.current_budget:.2f}",
-                fg="green",
-                font=("Arial", 11)
+                text=f"Remaining: ${remaining:.2f} of ${self.current_budget:.2f}",
+                fg="green"
             )
     
     def open_edit_window(self, event=None):
@@ -328,47 +317,47 @@ class FinanceFlow:
             messagebox.showwarning("Warning", "Select an expense to edit")
             return
         
-        # Get current values
         item = self.tree.item(selected[0])
         current_values = item["values"]
         
-        # Create edit window
         edit_win = Toplevel(self.root)
         edit_win.title("Edit Expense")
-        edit_win.geometry("400x350")
-        edit_win.grab_set()  # Make it modal
+        edit_win.geometry("450x400")
+        edit_win.transient(self.root)
+        edit_win.grab_set()
         
         # Center the window
-        edit_win.transient(self.root)
+        edit_win.update_idletasks()
+        x = (edit_win.winfo_screenwidth() // 2) - (450 // 2)
+        y = (edit_win.winfo_screenheight() // 2) - (400 // 2)
+        edit_win.geometry(f"450x400+{x}+{y}")
         
-        # Labels and entries
-        tk.Label(edit_win, text="Edit Expense", font=("Arial", 16, "bold")).pack(pady=10)
+        tk.Label(edit_win, text="Edit Expense", font=("Arial", 16, "bold")).pack(pady=15)
         
-        tk.Label(edit_win, text="Amount:").pack(anchor="w", padx=20, pady=(10,0))
+        tk.Label(edit_win, text="Amount ($):", font=("Arial", 11)).pack(anchor="w", padx=30, pady=(10,0))
         amount_entry = tk.Entry(edit_win, font=("Arial", 12))
-        amount_entry.pack(fill="x", padx=20, pady=5)
+        amount_entry.pack(fill="x", padx=30, pady=5)
         amount_entry.insert(0, current_values[3].replace("$", ""))
         
-        tk.Label(edit_win, text="Category:").pack(anchor="w", padx=20, pady=(10,0))
+        tk.Label(edit_win, text="Category:", font=("Arial", 11)).pack(anchor="w", padx=30, pady=(10,0))
         category_var = tk.StringVar()
         categories = ["Food", "Transport", "Entertainment", "Shopping", "Bills", "Healthcare", "Other"]
-        category_menu = ttk.Combobox(edit_win, textvariable=category_var, values=categories)
-        category_menu.pack(fill="x", padx=20, pady=5)
+        category_menu = ttk.Combobox(edit_win, textvariable=category_var, values=categories, font=("Arial", 11))
+        category_menu.pack(fill="x", padx=30, pady=5)
         category_menu.set(current_values[1])
         
-        tk.Label(edit_win, text="Description:").pack(anchor="w", padx=20, pady=(10,0))
+        tk.Label(edit_win, text="Description:", font=("Arial", 11)).pack(anchor="w", padx=30, pady=(10,0))
         desc_entry = tk.Entry(edit_win, font=("Arial", 12))
-        desc_entry.pack(fill="x", padx=20, pady=5)
+        desc_entry.pack(fill="x", padx=30, pady=5)
         desc_entry.insert(0, current_values[2])
         
-        tk.Label(edit_win, text="Date (YYYY-MM-DD):").pack(anchor="w", padx=20, pady=(10,0))
+        tk.Label(edit_win, text="Date (YYYY-MM-DD):", font=("Arial", 11)).pack(anchor="w", padx=30, pady=(10,0))
         date_entry = tk.Entry(edit_win, font=("Arial", 12))
-        date_entry.pack(fill="x", padx=20, pady=5)
+        date_entry.pack(fill="x", padx=30, pady=5)
         date_entry.insert(0, current_values[0])
         
-        # Button frame
         btn_frame = tk.Frame(edit_win)
-        btn_frame.pack(pady=20)
+        btn_frame.pack(pady=25)
         
         def save_edit():
             try:
@@ -383,15 +372,13 @@ class FinanceFlow:
                 if not new_description:
                     new_description = "-"
                 
-                # Update database
-                if collection:
-                    # Find and update the expense
-                    old_amount = float(current_values[3].replace("$", ""))
-                    old_date = current_values[0]
-                    old_description = current_values[2]
-                    old_category = current_values[1]
-                    
-                    collection.update_one(
+                old_amount = float(current_values[3].replace("$", ""))
+                old_date = current_values[0]
+                old_description = current_values[2]
+                old_category = current_values[1]
+                
+                if collection is not None:
+                    result = collection.update_one(
                         {
                             "amount": old_amount,
                             "date": old_date,
@@ -407,11 +394,13 @@ class FinanceFlow:
                             }
                         }
                     )
+                    
+                    if result.modified_count == 0:
+                        messagebox.showerror("Error", "Could not find expense in database")
+                        return
                 
-                # Update table
                 self.tree.item(selected[0], values=(new_date, new_category, new_description, f"${new_amount:.2f}"))
                 
-                # Refresh totals
                 self.update_total()
                 self.check_budget_status()
                 
@@ -420,9 +409,11 @@ class FinanceFlow:
                 
             except ValueError:
                 messagebox.showerror("Error", "Please enter a valid amount")
+            except Exception as e:
+                messagebox.showerror("Error", f"Update failed: {e}")
         
-        tk.Button(btn_frame, text="Save Changes", bg="green", fg="white", command=save_edit).pack(side="left", padx=5)
-        tk.Button(btn_frame, text="Cancel", bg="gray", fg="white", command=edit_win.destroy).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Save Changes", bg="green", fg="white", font=("Arial", 11), command=save_edit).pack(side="left", padx=10)
+        tk.Button(btn_frame, text="Cancel", bg="gray", fg="white", font=("Arial", 11), command=edit_win.destroy).pack(side="left", padx=10)
 
 if __name__ == "__main__":
     root = tk.Tk()
